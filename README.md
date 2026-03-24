@@ -2574,3 +2574,193 @@ String name = switch (day) {
     default -> "Other";
 };
 ```
+---
+
+## 24. Naming Conventions
+
+Java naming conventions follow a set of widely adopted rules (Oracle/Google style). They make code readable and consistent.
+
+---
+
+### Classes & Abstract Classes
+- **Style:** `PascalCase` (UpperCamelCase) — every word starts with a capital letter.
+- **Rule:** Use a noun or noun phrase. Abstract classes may be prefixed with `Abstract`.
+```java
+class BankAccount {}
+class LinkedList {}
+abstract class AbstractShape {}
+```
+
+---
+
+### Interfaces
+- **Style:** `PascalCase`
+- **Rule:** Use an adjective (ability/contract) or noun. Prefer `-able` suffix for capability interfaces.
+```java
+interface Runnable {}
+interface Serializable {}
+interface PaymentGateway {}
+```
+
+---
+
+### Methods
+- **Style:** `camelCase` — first word lowercase, subsequent words capitalized.
+- **Rule:** Use a verb or verb phrase describing the action.
+```java
+void calculateTax() {}
+String getUserName() {}
+boolean isActive() {}
+```
+
+---
+
+### Variables (Local & Instance)
+- **Style:** `camelCase`
+- **Rule:** Use a meaningful noun. Single-letter names only for short-lived loop counters.
+```java
+int totalAmount = 0;
+String firstName = "Rahul";
+for (int i = 0; i < 10; i++) { }  // 'i' is acceptable here
+```
+
+---
+
+### Constants (`static final`)
+- **Style:** `UPPER_SNAKE_CASE` — all uppercase with underscores between words.
+```java
+static final int MAX_SIZE = 100;
+static final double PI = 3.14159;
+static final String DEFAULT_CURRENCY = "INR";
+```
+
+---
+
+### Packages
+- **Style:** All lowercase, no underscores. Use reverse domain name as prefix.
+- **Rule:** Each segment should be a single lowercase word.
+```java
+package com.company.project.module;
+package org.apache.commons.lang;
+```
+
+---
+
+### Enums (Type & Constants)
+- **Type name:** `PascalCase` (same as a class).
+- **Enum constants:** `UPPER_SNAKE_CASE`.
+```java
+enum Day {
+    MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY
+}
+
+enum HttpStatus {
+    OK, NOT_FOUND, INTERNAL_SERVER_ERROR
+}
+```
+
+---
+
+### Generic Type Parameters
+- **Style:** Single uppercase letter (or short uppercase name for clarity).
+
+| Letter | Conventional meaning        |
+|--------|-----------------------------|
+| `T`    | Type (general purpose)      |
+| `E`    | Element (collections)       |
+| `K`    | Key (maps)                  |
+| `V`    | Value (maps)                |
+| `N`    | Number                      |
+| `R`    | Return type (functions)     |
+| `S`,`U`,`W` | Additional type params |
+
+```java
+class Box<T> {}
+class Pair<K, V> {}
+<T extends Comparable<T>> T max(T a, T b) { return a.compareTo(b) > 0 ? a : b; }
+```
+
+---
+
+### Annotations
+- **Style:** `PascalCase` (same as a class/interface).
+```java
+@interface NotNull {}
+@interface Deprecated {}   // built-in example
+@interface RequestMapping {}
+```
+
+---
+
+### Getters & Setters
+- **Getter:** prefix `get` + `PascalCase` field name. For `boolean` fields, use `is` prefix.
+- **Setter:** prefix `set` + `PascalCase` field name.
+```java
+private String name;
+private boolean active;
+
+public String getName() { return name; }          // getter
+public void setName(String name) { this.name = name; } // setter
+public boolean isActive() { return active; }      // boolean getter
+public void setActive(boolean active) { this.active = active; }
+```
+
+---
+
+### Boolean Variables & Methods
+- **Rule:** Name them so they read like a yes/no question. Use prefixes: `is`, `has`, `can`, `should`, `was`, `will`.
+```java
+boolean isLoggedIn = true;
+boolean hasPermission = false;
+boolean canEdit() { return role.equals("ADMIN"); }
+boolean shouldRetry = attempts < 3;
+```
+
+---
+
+### Factory & Builder Methods (Common Conventions)
+| Pattern          | Method name examples                          |
+|------------------|-----------------------------------------------|
+| Static factory   | `of()`, `from()`, `valueOf()`, `parse()`      |
+| Instance factory | `create()`, `newInstance()`, `getInstance()`  |
+| Builder pattern  | `builder()`, `build()`                        |
+| Conversion       | `toList()`, `toString()`, `asMap()`           |
+
+```java
+Optional.of("value");
+Integer.valueOf(42);
+LocalDate.parse("2026-01-01");
+List.of(1, 2, 3);
+```
+
+---
+
+### Records (Java 16+)
+- **Style:** `PascalCase` (same as a class).
+- **Accessor methods:** automatically generated as the **field name itself** (no `get` prefix).
+```java
+record Point(int x, int y) {}
+// Accessors: point.x()  point.y()   (NOT getX() / getY())
+
+record UserProfile(String name, int age) {}
+```
+
+---
+
+### Quick Reference Summary
+
+| Element             | Convention          | Example                   |
+|---------------------|---------------------|---------------------------|
+| Class               | `PascalCase`        | `BankAccount`             |
+| Interface           | `PascalCase`        | `Serializable`            |
+| Abstract Class      | `PascalCase`        | `AbstractShape`           |
+| Method              | `camelCase`         | `calculateTax()`          |
+| Variable            | `camelCase`         | `totalAmount`             |
+| Constant            | `UPPER_SNAKE_CASE`  | `MAX_SIZE`                |
+| Package             | `lowercase`         | `com.company.module`      |
+| Enum type           | `PascalCase`        | `Day`                     |
+| Enum constant       | `UPPER_SNAKE_CASE`  | `MONDAY`                  |
+| Generic parameter   | Single uppercase    | `T`, `E`, `K`, `V`        |
+| Annotation          | `PascalCase`        | `NotNull`                 |
+| Record              | `PascalCase`        | `Point`                   |
+| Boolean variable    | `is`/`has`/`can`+camelCase | `isActive`        |
