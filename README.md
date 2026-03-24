@@ -127,6 +127,17 @@ void change(int[] arr) {
 }
 ```
 
+### Numeric Literals (Java 7+)
+```java
+int million   = 1_000_000;          // underscores for readability
+long card     = 1234_5678_9012_3456L;
+int hexColor  = 0xFF_EC_D2_9E;
+
+int binary    = 0b1010;             // binary literal  = 10
+int hex       = 0xFF;               // hex literal     = 255
+int octal     = 017;                // octal literal   = 15
+```
+
 ---
 
 ## 2. Control Flow
@@ -449,10 +460,34 @@ interface Flyable {
     }
 }
 
+```java
 class Bird implements Flyable {
     public void fly() { System.out.println("Bird flying"); }
 }
 ```
+
+### Interface Default Method Conflict (Diamond Problem)
+```java
+interface A { default void hello() { System.out.println("A"); } }
+interface B { default void hello() { System.out.println("B"); } }
+
+class C implements A, B {
+    // Must override to resolve conflict
+    public void hello() { A.super.hello(); } // explicitly choose A's version
+}
+```
+
+### Abstract Class vs Interface
+| Feature                      | Abstract Class              | Interface (Java 8+)         |
+|------------------------------|-----------------------------|-----------------------------|
+| Instantiation                | ❌                          | ❌                          |
+| Multiple inheritance         | ❌ (single extends)         | ✅ (multiple implements)    |
+| Constructors                 | ✅                          | ❌                          |
+| Instance fields              | ✅                          | ❌ (only `public static final`) |
+| Concrete methods             | ✅                          | ✅ (`default`/`static`)     |
+| Abstract methods             | ✅                          | ✅ (implicitly)             |
+| Access modifiers on methods  | Any                         | `public` only               |
+| Use when                     | Sharing code among related classes | Defining a contract/capability |
 
 ### Dynamic Method Dispatch
 ```java
@@ -505,6 +540,25 @@ class Parent {
 class Child extends Parent {
     Child get() { return this; }  // return type can be subclass — covariant
 }
+```
+
+### Method Hiding vs Overriding
+- **Overriding**: instance method in subclass replaces parent's (runtime polymorphism).
+- **Hiding**: if you declare a `static` method with same signature in subclass, the PARENT version is called if accessed via parent reference — this is NOT polymorphism.
+
+```java
+class Parent {
+    static void staticMethod()   { System.out.println("Parent static"); }
+    void instanceMethod()        { System.out.println("Parent instance"); }
+}
+class Child extends Parent {
+    static void staticMethod()   { System.out.println("Child static"); }  // HIDES, not overrides
+    void instanceMethod()        { System.out.println("Child instance"); } // overrides
+}
+
+Parent p = new Child();
+p.staticMethod();    // "Parent static"  — hiding: resolved at compile-time
+p.instanceMethod();  // "Child instance" — overriding: resolved at runtime
 ```
 
 ---
@@ -567,15 +621,30 @@ void method() {
 // When method() ends, x and s are popped from stack
 // Object "Hi" stays on heap until garbage collected
 ```
+```
+  Stack (per-thread)            Heap (shared)
+  ┌─────────────────┐          ┌──────────────────────────┐
+  │ Frame: main()   │          │  Object: new Dog()       │
+  │  args → ────────┼──────→  │  name: "Buddy"           │
+  │  dog  → ────────┼──────→  │  age:  3                 │
+  ├─────────────────┤          └──────────────────────────┘
+  │ Frame: method() │
+  │  x = 5          │   (primitives live directly on stack)
+  │  y = 10         │
+  └─────────────────┘
+  (LIFO — grows downward, auto-cleaned on return)
+```
 
 ### ClassLoader Hierarchy
 ```
-Bootstrap ClassLoader → loads core Java (rt.jar)
+Bootstrap ClassLoader  → loads core Java (rt.jar / java.* classes)
+    ↓                    written in NATIVE code (C/C++), not Java itself
+Extension ClassLoader  → loads ext/ directory (java.ext.dirs)
     ↓
-Extension ClassLoader → loads ext/ directory
-    ↓
-Application ClassLoader → loads classpath classes
+Application ClassLoader → loads classpath classes (your code + libs)
 ```
+**Delegation Model**: When a class is requested, the ClassLoader first delegates to its *parent*. Only if the parent cannot find the class does the child attempt to load it (parent-first / bootstrap-first principle).  
+Custom ClassLoaders (extend `ClassLoader`, override `findClass()`) are used for hot-deploy, plugin systems, and bytecode transformation.
 
 ### Garbage Collection
 ```java
@@ -586,10 +655,37 @@ obj = null;                    // now eligible for GC
 System.gc();                   // REQUEST to run GC (not guaranteed)
 
 // finalize() — called before GC collects object (deprecated since Java 9)
+// Prefer java.lang.ref.Cleaner API (Java 9+) for cleanup actions:
+// Cleaner cleaner = Cleaner.create();
+// cleaner.register(obj, () -> System.out.println("Cleaning up"));
 protected void finalize() {
     System.out.println("Object being collected");
 }
 ```
+
+**Generational GC — Heap Layout:**
+```
+┌─────────────────────────── Heap ────────────────────────────┐
+│  Young Generation                    │   Old Generation      │
+│  ┌────────┬──────────┬──────────┐   │  ┌─────────────────┐ │
+│  │  Eden  │Survivor0 │Survivor1 │→→→│  │   Long-lived    │ │
+│  │(allocs)│   (S0)   │   (S1)   │   │  │    objects      │ │
+│  └────────┴──────────┴──────────┘   │  └─────────────────┘ │
+│         Minor GC (frequent)         │  Major/Full GC (rare) │
+└─────────────────────────────────────┴───────────────────────┘
+        Metaspace (off-heap): class metadata, static variables
+```
+- **Minor GC** — collects Young Gen (Eden + Survivors); short pause, frequent.
+- **Major GC** — collects Old Gen; longer pause, infrequent.
+- **Full GC** — collects entire heap + Metaspace; avoid in production.
+
+| Algorithm    | Java default | Notes |
+|--------------|--------------|-------|
+| Serial GC    | single-core / small heaps | `-XX:+UseSerialGC` |
+| Parallel GC  | Java 8 default | throughput-focused, stop-the-world |
+| G1 GC        | Java 9+ default | balanced latency/throughput, region-based |
+| ZGC          | Java 15+ production | sub-millisecond pauses, scalable |
+| Shenandoah   | OpenJDK 15+  | concurrent compaction, low pause |
 
 ### Stack Overflow vs OOM
 ```java
@@ -600,6 +696,27 @@ void infinite() { infinite(); }
 List<byte[]> list = new ArrayList<>();
 while (true) { list.add(new byte[1000000]); }
 ```
+
+### Java Memory Model (JMM) & Happens-Before
+The JMM defines rules that guarantee **visibility** of changes across threads.  
+A **happens-before** relationship means: if action A happens-before action B, all writes by A are visible to B.
+
+Key happens-before rules:
+- **Program order**: each action in a thread happens-before the next action in that thread.
+- **Monitor lock**: `unlock` of a monitor happens-before every subsequent `lock` of that monitor.
+- **Volatile**: a write to a `volatile` field happens-before every subsequent read of that field.
+- **Thread start**: `Thread.start()` happens-before any action in the started thread.
+- **Thread join**: all actions in a thread happen-before `Thread.join()` returns.
+- **Transitivity**: if A h-b B, and B h-b C, then A h-b C.
+
+### JIT Compilation (HotSpot)
+```
+Source (.java) → Bytecode (.class) → JVM Interpreter → JIT Compiler → Native Machine Code
+```
+- **C1 (Client compiler)** — fast startup, light optimizations (used for short-lived code).
+- **C2 (Server compiler)** — deep optimizations (inlining, escape analysis) for hot paths.
+- HotSpot detects "hot" methods (called ≥10 000 times) and compiles them natively.
+- `-XX:+PrintCompilation` shows JIT activity. `-Xint` disables JIT (interpreter only).
 
 ---
 
@@ -809,6 +926,27 @@ if (m.find()) {
 "hello world".replaceAll("\\s", "-"); // "hello-world"
 ```
 
+### String Comparison Pitfalls
+| Comparison           | What it checks          | Use for                        |
+|----------------------|-------------------------|--------------------------------|
+| `==`                 | Reference equality      | ⚠️ Never for string value check |
+| `.equals()`          | Content equality        | ✅ Always for string value check |
+| `.equalsIgnoreCase()`| Content, case-insensitive | ✅ Case-insensitive check      |
+| `.compareTo()`       | Lexicographic order     | ✅ Sorting / ordering          |
+
+```java
+String a = new String("hello");
+String b = new String("hello");
+
+a == b;              // false — different heap objects
+a.equals(b);         // true  — same content
+a.compareTo(b);      // 0     — same lexicographic order
+
+// Safe null-first comparison (avoids NPE)
+Objects.equals(a, b);           // true (null-safe)
+"literal".equals(variable);     // NPE-safe: literal on the left
+```
+
 ---
 
 ## 10. Arrays
@@ -905,6 +1043,10 @@ void addNums(List<? super Integer> list) { }    // lower — Integer or supercla
 // At compile time: Box<String> → At runtime: Box<Object>
 // Generics are erased at runtime — cannot do:
 // new T(), T.class, instanceof T
+
+// Unchecked cast warnings can be suppressed when you are certain of type safety:
+@SuppressWarnings("unchecked")
+<T> T castTo(Object obj) { return (T) obj; }
 ```
 
 ---
@@ -956,6 +1098,12 @@ ll.addLast("B");
 ll.getFirst();
 ll.removeLast();
 ```
+```
+LinkedList internal structure (doubly-linked nodes):
+
+null ← [prev|"A"|next] ↔ [prev|"B"|next] ↔ [prev|"C"|next] → null
+        head                                  tail
+```
 
 ### Set
 ```java
@@ -1001,6 +1149,7 @@ TreeMap<String, Integer> tm = new TreeMap<>(map);
 ```
 - Uses array of buckets (Node[])
 - Key → hashCode() → index via (hash & (n-1))
+- null keys are stored at bucket index 0
 - Collision → linked list → treeify to Red-Black tree when bucket size >= 8
 - Default capacity: 16, load factor: 0.75
 - Resizes (doubles) when size > capacity * load factor
@@ -1015,12 +1164,27 @@ pq.poll();     // 10 (smallest)
 pq.peek();     // 20 (next smallest)
 
 // ArrayDeque — double-ended queue (faster than Stack/LinkedList)
+// ⚠️ Prefer ArrayDeque over the legacy Stack class (Stack extends Vector — synchronized/legacy)
 ArrayDeque<String> deque = new ArrayDeque<>();
 deque.push("A");           // stack: push
 deque.push("B");
 deque.pop();               // "B" — stack: pop
 deque.offerFirst("X");     // queue operations
 deque.offerLast("Y");
+```
+```
+Queue — FIFO (First-In, First-Out):
+  Enqueue →  [ A | B | C | D ]  → Dequeue
+             rear             front
+             (offer/add)      (poll/remove)
+
+Stack — LIFO (Last-In, First-Out):
+  push →  ┌───┐  ← pop
+           │ D │  ← top
+           │ C │
+           │ B │
+           │ A │
+           └───┘  ← bottom
 ```
 
 ### Iterator & ListIterator
@@ -1071,6 +1235,31 @@ Collections.sort(studentList);  // uses compareTo
 // Comparator — external ordering, separate class/lambda
 Collections.sort(studentList, (a, b) -> a.name.compareTo(b.name)); // by name
 studentList.sort(Comparator.comparingInt(s -> s.marks).reversed()); // descending
+// ⚠️ Avoid (this.marks - o.marks) for int comparison — can overflow!
+// Use Integer.compare(this.marks, o.marks) instead
+```
+
+### Collections Utility Methods
+```java
+import java.util.Collections;
+
+List<Integer> nums = new ArrayList<>(Arrays.asList(3, 1, 4, 1, 5, 9));
+
+Collections.sort(nums);                        // [1, 1, 3, 4, 5, 9]
+Collections.sort(nums, Comparator.reverseOrder()); // descending
+Collections.reverse(nums);                     // reverses in-place
+Collections.shuffle(nums);                     // random order
+Collections.min(nums);                         // smallest element
+Collections.max(nums);                         // largest element
+Collections.frequency(nums, 1);               // count occurrences of 1 → 2
+
+List<String> repeated = Collections.nCopies(3, "Hi"); // ["Hi", "Hi", "Hi"]
+
+// Wrap as unmodifiable (throws UnsupportedOperationException on mutation)
+List<Integer> immutable = Collections.unmodifiableList(nums);
+
+// Wrap as synchronized (thread-safe — still need external sync for compound ops)
+List<Integer> synced = Collections.synchronizedList(nums);
 ```
 
 ### Special Maps
@@ -1466,8 +1655,9 @@ NEW → (start()) → RUNNABLE → (scheduler) → RUNNING
 ### start() vs run()
 ```java
 Thread t = new Thread(() -> System.out.println("Running"));
-t.start();   // creates new thread, executes run() in new thread
-t.run();     // executes run() in CURRENT thread — NOT a new thread!
+t.start();   // creates new OS thread, executes run() in that new thread
+t.run();     // executes run() in the CURRENT thread — no new thread created at all!
+// ⚠️ Calling run() directly is a common bug: the code runs but gives NO concurrency benefit
 ```
 
 ### Thread Methods
@@ -1487,21 +1677,23 @@ class Counter {
     private int count = 0;
 
     // Synchronized method — only one thread at a time
+    // Lock is the current object instance (object-level lock)
     synchronized void increment() { count++; }
 
-    // Synchronized block — finer control
+    // Synchronized block — finer control (object-level lock on 'this')
     void incrementBlock() {
         synchronized (this) {   // lock on current object
             count++;
         }
     }
 
-    // Class-level lock
+    // Class-level lock — locks on the Class object (shared across all instances)
     static synchronized void staticMethod() { }
-    // OR
+    // OR equivalent:
     static void staticMethod2() {
         synchronized (Counter.class) { }
     }
+    // ⚠️ Object-level and class-level locks are INDEPENDENT — they don't block each other
 }
 ```
 
@@ -1516,6 +1708,9 @@ class Flag {
 
     void stop() { running = false; }
 }
+// ⚠️ volatile ensures VISIBILITY but NOT ATOMICITY
+// volatile int i; i++; — is still NOT atomic (read + increment + write = 3 steps)
+// Use AtomicInteger for atomic compound operations
 ```
 
 ### Inter-thread Communication
@@ -1614,6 +1809,14 @@ sem.release();  // return permit
 AtomicInteger counter = new AtomicInteger(0);
 counter.incrementAndGet();    // atomic ++
 counter.compareAndSet(1, 2);  // CAS operation
+
+AtomicReference<String> ref = new AtomicReference<>("initial");
+ref.compareAndSet("initial", "updated");  // atomically swap reference
+
+LongAdder adder = new LongAdder();  // better throughput than AtomicLong under high contention
+adder.increment();
+adder.add(5);
+adder.sum();   // retrieve total
 ```
 
 ### ThreadLocal
@@ -1630,7 +1833,74 @@ threadLocal.remove();  // prevent memory leaks
 // Thread 2: locks B, then tries A
 // Both wait forever — DEADLOCK
 
-// Prevention: always acquire locks in the same order
+// Prevention techniques:
+// 1. Lock ordering  — always acquire locks in a globally consistent order
+// 2. tryLock with timeout — use ReentrantLock.tryLock(timeout, unit) and back off
+// 3. Lock hierarchy — assign numeric levels; never lock a lower-level lock while holding higher
+// 4. Avoid nested locks — minimize holding multiple locks simultaneously
+ReentrantLock lockA = new ReentrantLock();
+ReentrantLock lockB = new ReentrantLock();
+if (lockA.tryLock(1, TimeUnit.SECONDS)) {
+    try {
+        if (lockB.tryLock(1, TimeUnit.SECONDS)) {
+            try { /* critical section */ } finally { lockB.unlock(); }
+        }
+    } finally { lockA.unlock(); }
+}
+```
+
+### Java Memory Model (JMM) & Happens-Before (Concurrency)
+See **Section 6** for the full JMM explanation. Quick reference:
+- `volatile` write → happens-before subsequent `volatile` read of same variable.
+- `synchronized` unlock → happens-before any subsequent lock of same monitor.
+- Use `volatile` for single-variable visibility; `synchronized`/`Lock` for compound operations.
+
+### Virtual Threads (Java 21)
+```java
+// Virtual threads are lightweight — millions can exist vs thousands of platform threads
+Thread vThread = Thread.ofVirtual().start(() -> {
+    System.out.println("Virtual thread: " + Thread.currentThread().isVirtual());
+});
+vThread.join();
+
+// With ExecutorService
+try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
+    exec.submit(() -> System.out.println("Task in virtual thread"));
+}
+// Virtual threads are managed by JVM (carrier threads from a pool)
+// Ideal for blocking I/O workloads — no need for async/reactive boilerplate
+```
+
+### Common Concurrency Pitfalls
+```java
+// 1. Spurious wakeups — always use while (not if) around wait()
+synchronized (lock) {
+    while (!condition) lock.wait();  // ✅ re-checks after wakeup
+    // if (!condition) lock.wait(); // ❌ unsafe — may proceed without condition
+}
+
+// 2. Double-checked locking — requires volatile for correctness
+class Singleton {
+    private static volatile Singleton instance;
+    static Singleton getInstance() {
+        if (instance == null) {                  // first check (no lock)
+            synchronized (Singleton.class) {
+                if (instance == null) {          // second check (with lock)
+                    instance = new Singleton();
+                }
+            }
+        }
+        return instance;
+    }
+}
+
+// 3. Forgetting to release locks (use try-finally)
+lock.lock();
+try { /* work */ } finally { lock.unlock(); }  // ✅ always released
+
+// 4. Using HashMap in concurrent context — use ConcurrentHashMap instead
+// 5. Calling blocking operations inside synchronized — causes other threads to wait
+// 6. Thread.stop() / Thread.suspend() — deprecated and unsafe, use flags instead
 ```
 
 ---
@@ -1785,6 +2055,154 @@ Period period = Period.between(birthday, date);
 DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 String formatted = date.format(fmt);            // "23-03-2026"
 LocalDate parsed = LocalDate.parse("23-03-2026", fmt);
+```
+
+### var — Local Variable Type Inference (Java 10+)
+```java
+var list = new ArrayList<String>();  // type inferred as ArrayList<String>
+var map  = new HashMap<String, Integer>();
+var i    = 42;                       // inferred as int
+
+// Works in for-each and try-with-resources
+for (var entry : map.entrySet()) {
+    System.out.println(entry.getKey() + "=" + entry.getValue());
+}
+
+// var is NOT dynamic — type is fixed at compile time (NOT like JavaScript 'var')
+// Cannot use: var x = null; (ambiguous type)
+// Cannot use in method signatures or fields
+```
+
+### Text Blocks (Java 15+)
+```java
+// Traditional multi-line string
+String json = "{\n  \"name\": \"Alice\",\n  \"age\": 30\n}";
+
+// Text block — readable multi-line string
+String jsonBlock = """
+        {
+          "name": "Alice",
+          "age": 30
+        }
+        """;
+
+// Trailing """ position controls final newline
+// Incidental whitespace (common indent) is stripped automatically
+String html = """
+        <html>
+            <body>Hello</body>
+        </html>
+        """;
+```
+
+### Records (Java 16+)
+```java
+// Records — immutable data carriers, auto-generates constructor, getters, equals, hashCode, toString
+record Point(int x, int y) { }
+
+Point p = new Point(3, 4);
+p.x();        // 3  — accessor (not getX())
+p.y();        // 4
+System.out.println(p);  // Point[x=3, y=4]
+
+// Records can have compact constructors for validation
+record Range(int min, int max) {
+    Range {  // compact constructor — no parameter list
+        if (min > max) throw new IllegalArgumentException("min > max");
+    }
+}
+
+// Records can implement interfaces but cannot extend classes (implicitly extend Record)
+record NamedPoint(String name, int x, int y) implements Comparable<NamedPoint> {
+    public int compareTo(NamedPoint o) { return this.name.compareTo(o.name); }
+}
+```
+
+### Sealed Classes (Java 17+)
+```java
+// Sealed class restricts which classes can extend it
+sealed class Shape permits Circle, Rectangle, Triangle { }
+
+final class Circle    extends Shape { double radius; }
+final class Rectangle extends Shape { double width, height; }
+non-sealed class Triangle extends Shape { }  // Triangle can be freely extended
+
+// Works great with pattern matching switch
+String describe(Shape s) {
+    return switch (s) {
+        case Circle c    -> "Circle r=" + c.radius;
+        case Rectangle r -> "Rect " + r.width + "x" + r.height;
+        case Triangle t  -> "Triangle";
+    };
+}
+```
+
+### Pattern Matching instanceof (Java 16+)
+```java
+// Old style
+if (obj instanceof String) {
+    String s = (String) obj;  // redundant cast
+    System.out.println(s.length());
+}
+
+// Pattern matching — binding variable declared inline
+if (obj instanceof String s) {
+    System.out.println(s.length());  // s is available and typed here
+}
+
+// Combine with conditions
+if (obj instanceof String s && s.length() > 5) {
+    System.out.println("Long string: " + s);
+}
+```
+
+### Switch Expressions & yield (Java 14+)
+```java
+// Switch expression with arrow labels (no fall-through)
+int day = 3;
+String name = switch (day) {
+    case 1 -> "Monday";
+    case 2 -> "Tuesday";
+    case 3 -> "Wednesday";
+    default -> "Other";
+};
+
+// yield — return value from a block in switch expression
+String result = switch (day) {
+    case 1, 2, 3, 4, 5 -> "Weekday";
+    case 6, 7 -> {
+        System.out.println("Weekend!");
+        yield "Weekend";   // yield instead of return inside switch block
+    }
+    default -> "Unknown";
+};
+```
+
+### Stream Improvements (Java 16+)
+```java
+// Stream.toList() — Java 16+, returns unmodifiable List (shorter than Collectors.toList())
+List<String> names = Stream.of("Alice", "Bob", "Carol").toList();
+
+// Stream.takeWhile / dropWhile (Java 9+)
+Stream.of(1, 2, 3, 4, 5)
+      .takeWhile(n -> n < 4)    // [1, 2, 3]
+      .forEach(System.out::println);
+
+Stream.of(1, 2, 3, 4, 5)
+      .dropWhile(n -> n < 3)    // [3, 4, 5]
+      .forEach(System.out::println);
+
+// Stream.iterate with predicate (Java 9+)
+Stream.iterate(0, n -> n < 10, n -> n + 2)  // [0, 2, 4, 6, 8]
+      .forEach(System.out::println);
+
+// Collectors.teeing (Java 12+) — split stream into two collectors, merge results
+Map.Entry<Long, Double> stats = Stream.of(1, 2, 3, 4, 5)
+    .collect(Collectors.teeing(
+        Collectors.counting(),
+        Collectors.averagingInt(Integer::intValue),
+        Map::entry
+    ));
 ```
 
 ---
@@ -2021,3 +2439,138 @@ nameField.set(p, "Bob");                 // change private field
 // Invoke methods
 Method greet = clazz.getMethod("greet");
 greet.invoke(p);
+
+---
+
+## 23. Common Pitfalls
+
+### == vs equals() for Strings and Wrappers
+```java
+String a = new String("hello");
+String b = new String("hello");
+a == b;          // false — different heap objects
+a.equals(b);     // true  — same content ✅
+
+Integer x = 200;
+Integer y = 200;
+x == y;          // false — outside cache range (-128 to 127), new objects created
+x.equals(y);     // true  ✅
+```
+
+### Integer Cache Trap (-128 to 127)
+```java
+Integer i1 = 127;  Integer i2 = 127;
+i1 == i2;   // true  — JVM caches integers in [-128, 127]
+
+Integer i3 = 128;  Integer i4 = 128;
+i3 == i4;   // false — outside cache, new Integer objects allocated
+i3.equals(i4);  // true ✅ — always use equals() for wrapper comparison
+```
+
+### Mutable Objects as HashMap Keys
+```java
+class Key { int id; }
+Key k = new Key(); k.id = 1;
+Map<Key, String> map = new HashMap<>();
+map.put(k, "one");
+
+k.id = 2;               // ⚠️ mutating key changes its hashCode
+map.get(k);             // null! — wrong bucket, contract broken
+// Use immutable keys (String, Integer, records)
+```
+
+### ConcurrentModificationException
+```java
+List<String> list = new ArrayList<>(List.of("A", "B", "C"));
+for (String s : list) {
+    if (s.equals("B")) list.remove(s);  // ❌ ConcurrentModificationException
+}
+
+// Fix 1: use Iterator.remove()
+Iterator<String> it = list.iterator();
+while (it.hasNext()) { if (it.next().equals("B")) it.remove(); }
+
+// Fix 2: use removeIf (Java 8+)
+list.removeIf(s -> s.equals("B"));  // ✅
+```
+
+### String Concatenation in Loops
+```java
+// ❌ Creates a new String object on every iteration — O(n²) memory
+String result = "";
+for (int i = 0; i < 10000; i++) result += i;
+
+// ✅ StringBuilder — single mutable buffer — O(n)
+StringBuilder sb = new StringBuilder();
+for (int i = 0; i < 10000; i++) sb.append(i);
+String result2 = sb.toString();
+```
+
+### NullPointerException from Unboxing
+```java
+Integer value = null;
+int x = value;     // ❌ NullPointerException — unboxing null triggers NPE
+
+// Fix: null check before unboxing
+int x = (value != null) ? value : 0;
+// Or use Optional<Integer>
+```
+
+### float/double Precision (Use BigDecimal for Money)
+```java
+System.out.println(0.1 + 0.2);   // 0.30000000000000004 — floating-point imprecision
+
+// ✅ Use BigDecimal for exact decimal arithmetic
+BigDecimal a = new BigDecimal("0.1");
+BigDecimal b = new BigDecimal("0.2");
+System.out.println(a.add(b));   // 0.3 — exact
+// ⚠️ Never use: new BigDecimal(0.1) — the double 0.1 is already imprecise
+```
+
+### Swallowing Exceptions Silently
+```java
+// ❌ Exception is hidden — bugs become impossible to diagnose
+try {
+    riskyOperation();
+} catch (Exception e) {
+    // empty catch — swallowed silently
+}
+
+// ✅ Always log or rethrow
+try {
+    riskyOperation();
+} catch (Exception e) {
+    logger.error("Operation failed", e);  // log
+    throw new RuntimeException("Operation failed", e);  // or rethrow with context
+}
+```
+
+### static Fields Are Shared Across All Instances
+```java
+class Counter {
+    static int count = 0;  // shared by ALL instances
+    Counter() { count++; }
+}
+new Counter(); new Counter(); new Counter();
+System.out.println(Counter.count);  // 3 — not per-instance!
+// Use instance fields if you need per-object state
+```
+
+### switch Fall-Through / Missing break
+```java
+int day = 2;
+switch (day) {
+    case 1: System.out.println("Mon");  // missing break!
+    case 2: System.out.println("Tue");  // missing break!
+    case 3: System.out.println("Wed"); break;
+}
+// Prints: Tue AND Wed — fall-through from case 2 to case 3
+
+// ✅ Prefer switch expressions (Java 14+) — no fall-through by default
+String name = switch (day) {
+    case 1 -> "Mon";
+    case 2 -> "Tue";
+    case 3 -> "Wed";
+    default -> "Other";
+};
+```
